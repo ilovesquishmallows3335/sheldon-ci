@@ -1,0 +1,74 @@
+name: build-sheldon
+on:
+  workflow_dispatch:
+    inputs:
+      branch: { default: lineage-18.1 }
+      target: { default: lineage_sheldon-userdebug }
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - uses: easimon/maximize-build-space@master   # pin to a commit SHA later
+        with:
+          swap-size-mb: 8192
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - uses: actions/checkout@v4
+        with: { path: ci }
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          # add the package list from the LineageOS wiki build page for your branch
+          curl -s https://storage.googleapis.com/git-repo-downloads/repo | sudo tee /usr/local/bin/repo >/dev/null
+          sudo chmod +x /usr/local/bin/repo
+          git config --global user.name ci
+          git config --global user.email ci@example.com
+          git lfs install
+
+      - name: Sync
+        run: |
+          mkdir android && cd android
+          repo init -u https://github.com/LineageOS/android.git -b "${{ inputs.branch }}" --depth=1 --git-lfs --no-clone-bundle
+          mkdir -p .repo/local_manifests
+          cp ../ci/sheldon.xml .repo/local_manifests/
+          repo sync -c -j4 --force-sync --no-clone-bundle --no-tags --optimized-fetch
+
+      - name: Extract blobs
+        run: |
+          git clone --depth=1 https://github.com/mt8695/android_dump_amazon_sheldonp dump
+          cd android/device/amazon/sheldon
+          ./extract-files.sh "$GITHUB_WORKSPACE/dump"
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ inputs.branch }}-${{ github.run_id }}
+          restore-keys: ccache-${{ inputs.branch }}-
+
+      - name: Build
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          cd android
+          export USE_CCACHE=1 CCACHE_EXEC=/usr/bin/ccache CCACHE_DIR=$HOME/.ccache
+          ccache -M 8G
+          timeout 270m bash -c 'source build/envsetup.sh && breakfast "$TARGET" && mka bacon'
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: ~/.ccache
+          key: ccache-${{ inputs.branch }}-${{ github.run_id }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom
+          path: android/out/target/product/sheldon/lineage-*.zip
+          if-no-files-found: warn

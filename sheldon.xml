@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <remote name="mt8695" fetch="https://github.com/mt8695" />
+
+  <project name="android_device_amazon_sheldon" path="device/amazon/sheldon" remote="mt8695" revision="fbad030d6d8f53630c1f6b813e12d012097da586" />
+  <project name="android_kernel_amazon_mt8695"  path="kernel/amazon/mt8695"  remote="mt8695" revision="119f0dd3c04a91639cc80cf46371d724d84b1048" />
+
+  <remove-project name="LineageOS/android_frameworks_av" />
+  <project name="android_frameworks_av" path="frameworks/av" remote="mt8695" revision="1b39d34fdbbda7f8f26061bb47bb9d083df575e5" />
+</manifest>
